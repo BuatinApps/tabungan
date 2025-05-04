@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tabungan Amad</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+  <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6 space-y-6">
+    <h1 class="text-2xl font-bold text-indigo-700">📘 Aplikasi Tabungan Amad</h1>
+
+    <!-- Input Data Awal -->
+    <div class="space-y-2">
+      <input type="text" id="nama" placeholder="Nama" class="border px-4 py-2 rounded-lg w-full" />
+      <input type="number" id="saldoAwal" placeholder="Saldo Awal" class="border px-4 py-2 rounded-lg w-full" />
+      <button onclick="simpanDataAwal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 w-full">
+        Simpan Data Awal
+      </button>
+    </div>
+
+    <!-- Tambah Mutasi -->
+    <div>
+      <h2 class="text-lg font-semibold mb-2">➕ Tambah Mutasi</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+        <input type="date" id="tanggal" class="border px-2 py-1 rounded" />
+        <input type="text" id="keterangan" placeholder="Keterangan" class="border px-2 py-1 rounded" />
+        <input type="number" id="jumlah" placeholder="Jumlah" class="border px-2 py-1 rounded" />
+        <select id="tipe" class="border px-2 py-1 rounded">
+          <option value="masuk">Masuk</option>
+          <option value="keluar">Keluar</option>
+        </select>
+      </div>
+      <button onclick="tambahMutasi()" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+        Tambah
+      </button>
+    </div>
+
+    <!-- Filter -->
+    <div class="bg-gray-50 p-4 rounded-lg shadow">
+      <h3 class="font-semibold mb-2">📅 Filter Tanggal</h3>
+      <div class="flex flex-col sm:flex-row gap-2">
+        <input type="date" id="filterTanggal" class="border px-2 py-1 rounded" />
+        <button onclick="filterByTanggal()" class="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600">
+          Filter
+        </button>
+        <button onclick="tampilkan()" class="bg-gray-300 text-gray-700 px-4 py-1 rounded hover:bg-gray-400">
+          Tampilkan Semua
+        </button>
+      </div>
+    </div>
+
+    <!-- Grafik -->
+    <div>
+      <h3 class="text-lg font-semibold text-indigo-600 mb-2">📊 Grafik Perkembangan Saldo</h3>
+      <canvas id="grafikSaldo" height="120"></canvas>
+    </div>
+
+    <!-- Tabel Mutasi -->
+    <div class="overflow-auto">
+      <table class="min-w-full text-sm text-left border border-gray-200 rounded-lg">
+        <thead class="bg-indigo-100 text-indigo-800 font-semibold">
+          <tr>
+            <th class="px-4 py-2 border">Tanggal</th>
+            <th class="px-4 py-2 border">Keterangan</th>
+            <th class="px-4 py-2 border">Jumlah</th>
+            <th class="px-4 py-2 border">Tipe</th>
+          </tr>
+        </thead>
+        <tbody id="tabelMutasi" class="bg-white"></tbody>
+      </table>
+    </div>
+
+    <!-- Footer -->
+    <div class="flex justify-between items-center">
+      <div class="font-bold text-xl text-green-700">
+        💰 Saldo Akhir: <span id="saldoAkhir">Rp 0</span>
+      </div>
+      <button onclick="resetData()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+        🔄 Reset Semua Data
+      </button>
+    </div>
+  </div>
+
+  <!-- Script -->
+  <script>
+    let data = JSON.parse(localStorage.getItem("tabunganAya")) || {
+      nama: "",
+      saldo_awal: 0,
+      mutasi: []
+    };
+
+    let chart = null;
+
+    function simpanDataAwal() {
+      const nama = document.getElementById("nama").value;
+      const saldo = parseInt(document.getElementById("saldoAwal").value);
+      data.nama = nama;
+      data.saldo_awal = saldo;
+      simpan();
+      tampilkan();
+    }
+
+    function tambahMutasi() {
+      const tanggal = document.getElementById("tanggal").value;
+      const keterangan = document.getElementById("keterangan").value;
+      const jumlah = parseInt(document.getElementById("jumlah").value);
+      const tipe = document.getElementById("tipe").value;
+
+      if (!tanggal || !keterangan || isNaN(jumlah)) {
+        alert("Lengkapi semua data.");
+        return;
+      }
+
+      data.mutasi.push({ tanggal, keterangan, jumlah, tipe });
+      simpan();
+      tampilkan();
+    }
+
+    function simpan() {
+      localStorage.setItem("tabunganAya", JSON.stringify(data));
+    }
+
+    function tampilkan() {
+      const tabel = document.getElementById("tabelMutasi");
+      tabel.innerHTML = "";
+      let saldo = data.saldo_awal;
+      const saldoHistory = [];
+      const tanggalLabels = [];
+
+      // Sort mutasi berdasarkan tanggal
+      const sortedMutasi = [...data.mutasi].sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+
+      sortedMutasi.forEach(m => {
+        saldo += m.tipe === "masuk" ? m.jumlah : -m.jumlah;
+        saldoHistory.push(saldo);
+        tanggalLabels.push(m.tanggal);
+
+        tabel.innerHTML += `<tr class="border-t">
+          <td class="px-4 py-2 border">${m.tanggal}</td>
+          <td class="px-4 py-2 border">${m.keterangan}</td>
+          <td class="px-4 py-2 border">Rp ${m.jumlah.toLocaleString()}</td>
+          <td class="px-4 py-2 border capitalize">${m.tipe}</td>
+        </tr>`;
+      });
+
+      document.getElementById("saldoAkhir").innerText = "Rp " + saldo.toLocaleString();
+
+      tampilkanGrafik(tanggalLabels, saldoHistory);
+    }
+
+    function filterByTanggal() {
+      const tanggalFilter = document.getElementById("filterTanggal").value;
+      const tabel = document.getElementById("tabelMutasi");
+      tabel.innerHTML = "";
+      let saldo = data.saldo_awal;
+
+      data.mutasi.forEach(m => {
+        if (m.tanggal === tanggalFilter) {
+          saldo += m.tipe === "masuk" ? m.jumlah : -m.jumlah;
+          tabel.innerHTML += `<tr class="border-t">
+            <td class="px-4 py-2 border">${m.tanggal}</td>
+            <td class="px-4 py-2 border">${m.keterangan}</td>
+            <td class="px-4 py-2 border">Rp ${m.jumlah.toLocaleString()}</td>
+            <td class="px-4 py-2 border capitalize">${m.tipe}</td>
+          </tr>`;
+        }
+      });
+
+      document.getElementById("saldoAkhir").innerText = "Rp " + saldo.toLocaleString();
+    }
+
+    function resetData() {
+      if (confirm("Yakin ingin menghapus semua data?")) {
+        localStorage.removeItem("tabunganAya");
+        data = { nama: "", saldo_awal: 0, mutasi: [] };
+        tampilkan();
+      }
+    }
+
+    function tampilkanGrafik(labels, dataSaldo) {
+      const ctx = document.getElementById("grafikSaldo").getContext("2d");
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Saldo",
+            data: dataSaldo,
+            borderColor: "rgb(79, 70, 229)",
+            fill: true,
+            backgroundColor: "rgba(79, 70, 229, 0.1)",
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: true }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    tampilkan();
+  </script>
+</body>
+</html>
